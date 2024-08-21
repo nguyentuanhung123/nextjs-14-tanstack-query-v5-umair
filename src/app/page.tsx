@@ -9,6 +9,8 @@ interface Todo {
 }
 
 export default function Home() {
+  // How many queries are fetching?
+  const isFetching = useIsFetching();
 
   const { data: todosData, isLoading, isError, isSuccess } = useQuery<Todo[]>({
     queryKey: ["todos"],

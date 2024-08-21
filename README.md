@@ -39,6 +39,17 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/deploym
 - npm i @tanstack/react-query
 - npm i -D @tanstack/eslint-plugin-query
 - npm i @tanstack/react-query-devtools
+- npm i axios
+
+## Sử dụng json-server
+- B1: npm i -g json-server
+- B2: Kiểm trả đã tải chưa (json-server --version)
+- B3: Tạo file db.json trong thu muc goc
+- B4: Thêm bên trong script của file package.json
+```json
+"server": "json-server db.json --watch --port 3001"
+```
+- B5: Chạy npm run server
 
 ## Cấu hình
 - B1: Tạo folder providers trong folder src
@@ -185,3 +196,78 @@ const { data, error, isLoading } = useQuery('todos', fetchTodos, {
 
 ## Tóm lại:
 - Khi dữ liệu trong cache trở nên cũ và có một request mới, TanStack Query sẽ tự động làm mới dữ liệu bằng cách gửi yêu cầu mới và cập nhật cache với dữ liệu mới nhận được, sau đó đánh dấu dữ liệu này là tươi.
+
+## queryClient.invalidateQueries({ queryKey: ["todos"] }):
+
+- Câu lệnh này sử dụng queryClient để làm mới (invalidate) các query với queryKey là ["todos"].
+- Khi bạn invalidate một query, TanStack Query sẽ đánh dấu query đó là "cũ" (stale), và lần tiếp theo khi nó được sử dụng hoặc khi có sự kiện kích hoạt (như khi người dùng chuyển đổi giữa các tab), dữ liệu sẽ được tải lại từ server.
+- Điều này rất hữu ích sau khi bạn thực hiện mutation, vì bạn muốn cập nhật dữ liệu hiển thị trên UI (ví dụ: danh sách todos) với thông tin mới nhất từ server.
+
+## Ví dụ sử dụng:
+- Nếu bạn có một form cho phép người dùng thêm một todo mới, khi form được submit và mutation thành công, onSuccess sẽ làm mới danh sách todos để hiển thị todo vừa được thêm mà không cần phải tải lại trang.
+
+## Tóm lại:
+- onSuccess callback giúp bạn xử lý các hành động sau khi mutation thành công.
+- queryClient.invalidateQueries là công cụ mạnh mẽ để tự động làm mới dữ liệu liên quan khi bạn thay đổi dữ liệu trên server, đảm bảo rằng UI luôn hiển thị dữ liệu mới nhất.
+
+```tsx
+const mutation: any = useMutation<any>({
+    mutationFn: (newTodo) => {
+        return axios.post("http://localhost:3001/todos", newTodo)
+    },
+    // Sau khi thêm thì nó không hiện lên trên màn hình mà phải refresh, nên phải thêm đoạn code bên dưới
+    // variables object newTodo đang được truyền với mutationFn
+    onMutate: (variables) => {
+        console.log('A mutation is about to happen', variables);
+    },
+    onError: (error, variables, context) => {
+        console.log('An error happened', error.message);
+    },
+    onSuccess: (data, variables, context) => {
+        console.log('The mutation has succeeded', data);
+        // queryClient.invalidateQueries({ queryKey: ["todos"] })
+    },
+})
+```
+
+- Đoạn mã bạn cung cấp là một phần của cấu hình cho một mutation trong một thư viện quản lý trạng thái hoặc dữ liệu, như React Query. Đây là các callback functions (onMutate, onError, và onSuccess) được gọi ở các giai đoạn khác nhau của quá trình mutation (thay đổi dữ liệu).
+
+# onMutate: (variables) => {...}:
+
+- Hàm này được gọi ngay trước khi mutation diễn ra.
+- variables là các giá trị mà bạn đã truyền vào mutation khi gọi nó.
+- Trong ví dụ này, nó chỉ đơn giản là in ra console một thông báo rằng mutation sắp diễn ra cùng với các biến liên quan.
+
+# onError: (error, variables, context) => {...}:
+
+- Hàm này được gọi khi mutation gặp lỗi.
+- error: đối tượng chứa thông tin về lỗi.
+- variables: các biến đã được truyền vào mutation (giống như trong onMutate).
+- context: thông tin về ngữ cảnh, thường được dùng để hoàn tác những thay đổi tạm thời nếu cần.
+- Trong ví dụ này, nó in ra thông báo lỗi kèm theo message của lỗi đó.
+
+# onSuccess: (data, variables, context) => {...}:
+
+- Hàm này được gọi khi mutation thành công.
+- data: dữ liệu trả về từ mutation.
+- variables: các biến đã được truyền vào mutation.
+- context: thông tin ngữ cảnh.
+- Trong ví dụ này, nó in ra thông báo rằng mutation đã thành công cùng với dữ liệu trả về. Sau đó, nó gọi queryClient.
+
+- invalidateQueries({ queryKey: ["todos"] }) để vô hiệu hóa (invalidate) query với queryKey là ["todos"], nhằm buộc dữ liệu trong query đó được làm mới (refetch) để cập nhật dữ liệu mới nhất từ server.
+
+## React Query và Cơ Chế Cache
+- Khi bạn sử dụng React Query để fetch dữ liệu từ server (ví dụ, danh sách "todos"), dữ liệu đó sẽ được lưu trữ (cache) trên client (trong bộ nhớ). Khi một component cần dữ liệu này, React Query có thể trả về dữ liệu từ cache thay vì phải fetch lại từ server, giúp cải thiện hiệu năng và trải nghiệm người dùng.
+
+## invalidateQueries Làm Gì?
+- nvalidateQueries là một hàm của queryClient dùng để vô hiệu hóa một hoặc nhiều query dựa trên queryKey. Khi một query bị vô hiệu hóa, React Query sẽ đánh dấu rằng dữ liệu của query này không còn mới nhất (stale). Kết quả là khi query này được sử dụng lần tới, React Query sẽ tự động fetch lại dữ liệu từ server để đảm bảo rằng bạn đang làm việc với dữ liệu mới nhất.
+
+## Ví Dụ Cụ Thể
+- Trong đoạn mã của bạn, mutation đang thay đổi dữ liệu liên quan đến danh sách "todos". Khi mutation thành công (tức là dữ liệu trên server đã được cập nhật), bạn muốn đảm bảo rằng danh sách "todos" trên client cũng phản ánh đúng sự thay đổi này. Do đó, bạn gọi 
+- queryClient.invalidateQueries({ queryKey: ["todos"] }) để:
+1. Vô hiệu hóa (invalidate) query có queryKey là ["todos"].
+2. React Query sẽ đánh dấu dữ liệu của query này là cũ (stale).
+3. Khi component nào đó cần dữ liệu "todos", React Query sẽ fetch lại từ server để đảm bảo rằng bạn đang xem phiên bản mới nhất của danh sách "todos".
+
+## Tóm Lại
+- queryClient.invalidateQueries({ queryKey: ["todos"] }) giúp bạn đảm bảo rằng dữ liệu liên quan đến "todos" trên client luôn được cập nhật sau khi có thay đổi trên server, tránh việc hiển thị dữ liệu lỗi thời hoặc không chính xác cho người dùng.
